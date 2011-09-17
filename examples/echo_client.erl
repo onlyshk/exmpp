@@ -89,6 +89,10 @@ loop(MySession) ->
             io:format("~p~n", [Record]),
             echo_packet(MySession, Packet),
             loop(MySession);
+        %% If receive presence a message handle it
+        Record when Record#received_packet.packet_type == 'presence' ->
+	    handle_presence(MySession, Record, Record#received_packet.raw_packet), 
+            loop(MySession); 
         Record ->
             io:format("~p~n", [Record]),
             loop(MySession)
@@ -102,3 +106,33 @@ echo_packet(MySession, Packet) ->
     TmpPacket2 = exmpp_xml:set_attribute(TmpPacket, <<"to">>, From),
     NewPacket = exmpp_xml:remove_attribute(TmpPacket2, <<"id">>),
     exmpp_session:send_packet(MySession, NewPacket).
+
+%% Handle available/unavailable presence
+handle_presence(Session, Packet, Presence) -> 
+    case exmpp_jid:make(_From = Packet#received_packet.from) of 
+        JID -> 
+            case _Type = Packet#received_packet.type_attr of 
+                "available" ->
+                    % handle presnce available	
+		    ok;
+		"unavailable" ->
+		    % handle presnce unavailable
+		    ok;
+		"subscribe" -> 
+                    presence_subscribed(Session, JID), 
+                    presence_subscribe(Session, JID);
+		"subscribed" ->
+		    presence_subscribed(Session, JID),
+		    presence_subscribe(Session, JID) 
+            end 
+    end.
+    
+presence_subscribed(Session, Recipient) -> 
+    Presence_Subscribed = exmpp_presence:subscribed(), 
+    Presence = exmpp_stanza:set_recipient(Presence_Subscribed, Recipient), 
+    exmpp_session:send_packet(Session, Presence). 
+
+presence_subscribe(Session, Recipient) -> 
+    Presence_Subscribe = exmpp_presence:subscribe(), 
+    Presence = exmpp_stanza:set_recipient(Presence_Subscribe, Recipient), 
+    exmpp_session:send_packet(Session, Presence). 
